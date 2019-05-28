@@ -238,9 +238,15 @@ class MetasploitModule < Msf::Auxiliary
   def rdp_recv
     res1 = sock.get_once(4, 5)
     raise RdpCommunicationError unless res1 # nil due to a timeout
-    res2 = sock.get_once(res1[2..4].unpack("S>")[0], 5)
-    raise RdpCommunicationError unless res2 # nil due to a timeout
-    res1 + res2
+    count = res1[2..4].unpack("S>")[0] - 4
+    data = ""
+    while count != 0
+        res2 = sock.get_once(count, 5)
+        raise RdpCommunicationError unless res2 # nil due to a timeout
+        data << res2
+        count -= res2.length
+    end
+    res1 + data
   end
 
   def rdp_send_recv(data)
@@ -291,7 +297,8 @@ class MetasploitModule < Msf::Auxiliary
       begin
         for i in 0..3
           res = rdp_recv
-          if res.include?(["0300000902f0802180"].pack("H*"))
+         # if res.include?(["0300000902f0802180"].pack("H*"))
+         if res.start_with? ["0300000902f0802180"].pack("H*")
             return Exploit::CheckCode::Vulnerable
           end
           vprint_good("#{bin_to_hex(res)}")
